@@ -1,86 +1,79 @@
 import { useState, useRef, useEffect } from 'react';
-import { Volume2, VolumeX, Music } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function AudioPlayer() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true); // Starts playing (muted)
+  const [isMuted, setIsMuted] = useState(true);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hasUnmutedRef = useRef(false);
+
+  const unmute = () => {
+    if (!hasUnmutedRef.current && audioRef.current) {
+      const audio = audioRef.current;
+      audio.muted = false;
+      audio.play().catch(e => console.log("Play on unmute failed:", e));
+      hasUnmutedRef.current = true;
+      setIsMuted(false);
+    }
+  };
 
   useEffect(() => {
-    // Try background.mp3 first, fallback to background.mps if user named it that way
-    const audioSrc = "/background.mp3";
-    const audio = new Audio(audioSrc);
-    audio.loop = true;
-    audio.volume = 0.3; // Gentle volume
-    audioRef.current = audio;
-
-    // Attempt to auto-play immediately when component mounts
-    const playPromise = audio.play();
-    
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          setIsPlaying(true);
-          setHasInteracted(true);
-        })
-        .catch((error) => {
-          // Auto-play was prevented by browser policy
-          // Will wait for user interaction
-          console.log("Auto-play prevented, waiting for user interaction");
-        });
+    if (audioRef.current) {
+      audioRef.current.volume = 0.3;
     }
+  }, []);
 
+  // Unmute on first user interaction
+  useEffect(() => {
+    const opts = { capture: true, once: true };
+    document.addEventListener('click', unmute, opts);
+    document.addEventListener('touchstart', unmute, opts);
+    document.addEventListener('keydown', unmute, opts);
     return () => {
-      audio.pause();
-      audioRef.current = null;
+      document.removeEventListener('click', unmute, opts);
+      document.removeEventListener('touchstart', unmute, opts);
+      document.removeEventListener('keydown', unmute, opts);
     };
   }, []);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    if (isPlaying) {
-      audioRef.current.pause();
+    if (isMuted) {
+      unmute();
     } else {
-      audioRef.current.play().catch(e => console.log("Audio play failed:", e));
-    }
-    setIsPlaying(!isPlaying);
-    setHasInteracted(true);
-  };
-
-  // Attempt auto-play on first interaction with the document if not already playing
-  useEffect(() => {
-    const handleInteraction = () => {
-      if (!hasInteracted && audioRef.current && !isPlaying) {
-        audioRef.current.play()
-          .then(() => {
-            setIsPlaying(true);
-            setHasInteracted(true);
-          })
-          .catch(() => {
-            // Auto-play prevented, waiting for explicit click
-          });
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play().catch(e => console.log("Audio play failed:", e));
       }
-    };
-
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('touchstart', handleInteraction, { once: true });
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-    };
-  }, [hasInteracted, isPlaying]);
+      setIsPlaying(!isPlaying);
+    }
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
+      <audio
+        ref={audioRef}
+        src="/background.mp3"
+        loop
+        autoPlay
+        muted
+        playsInline
+        style={{ display: 'none' }}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      />
       <Button
         variant="secondary"
         size="icon"
         className="rounded-full shadow-lg bg-white/80 backdrop-blur border-pink-200 hover:bg-pink-100 text-pink-500 w-12 h-12"
         onClick={togglePlay}
+        title={isMuted ? "Click to unmute music" : isPlaying ? "Pause music" : "Play music"}
       >
-        {isPlaying ? (
+        {isPlaying && !isMuted ? (
           <Volume2 className="w-5 h-5 animate-pulse" />
         ) : (
           <VolumeX className="w-5 h-5" />
