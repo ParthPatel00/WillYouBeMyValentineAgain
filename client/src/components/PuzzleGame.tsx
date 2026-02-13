@@ -38,23 +38,41 @@ export function PuzzleGame({ onComplete }: PuzzleGameProps) {
   }, []);
 
   const shufflePieces = (currentPieces: Piece[]) => {
-    const shuffled = [...currentPieces].sort(() => Math.random() - 0.5);
-    // Ensure it's not solved by accident (unlikely but possible)
-    const isSolved = shuffled.every(p => p.currentPos === p.correctPos);
+    // Create a proper shuffle by randomly assigning positions
+    // We'll do multiple random swaps to ensure it's well shuffled
+    const shuffled = currentPieces.map(p => ({ ...p }));
+    const totalPieces = GRID_SIZE * GRID_SIZE;
     
-    if (isSolved) {
-      // Swap two random pieces
-      const temp = shuffled[0].currentPos;
-      shuffled[0].currentPos = shuffled[1].currentPos;
-      shuffled[1].currentPos = temp;
-    } else {
-      // Assign random positions 0-8 to the pieces
-      const positions = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => i);
-      const randomPositions = positions.sort(() => Math.random() - 0.5);
-      
-      shuffled.forEach((piece, index) => {
-        piece.currentPos = randomPositions[index];
-      });
+    // Generate random positions for each piece
+    const positions = Array.from({ length: totalPieces }, (_, i) => i);
+    
+    // Fisher-Yates shuffle for truly random distribution
+    for (let i = positions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+    
+    // Assign shuffled positions to pieces
+    shuffled.forEach((piece, index) => {
+      piece.currentPos = positions[index];
+    });
+    
+    // Ensure puzzle is not already solved and has minimum difficulty
+    // Check if puzzle is solved or too easy (less than 5 pieces out of place)
+    const misplacedCount = shuffled.filter(p => p.currentPos !== p.correctPos).length;
+    
+    // If puzzle is too easy (less than 8 pieces misplaced), reshuffle
+    if (misplacedCount < 8) {
+      // Do additional random swaps to increase difficulty
+      for (let i = 0; i < 10; i++) {
+        const idx1 = Math.floor(Math.random() * totalPieces);
+        const idx2 = Math.floor(Math.random() * totalPieces);
+        if (idx1 !== idx2) {
+          const temp = shuffled[idx1].currentPos;
+          shuffled[idx1].currentPos = shuffled[idx2].currentPos;
+          shuffled[idx2].currentPos = temp;
+        }
+      }
     }
     
     setPieces(shuffled);
@@ -139,8 +157,9 @@ export function PuzzleGame({ onComplete }: PuzzleGameProps) {
           className="grid gap-1 bg-pink-50 rounded-lg overflow-hidden"
           style={{ 
             gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+            gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`,
             width: 'min(90vw, 400px)',
-            height: 'min(90vw, 400px)',
+            aspectRatio: '1',
           }}
         >
           {/* We render slots 0-8, and find which piece is currently at that slot */}
@@ -151,13 +170,20 @@ export function PuzzleGame({ onComplete }: PuzzleGameProps) {
             const isSelected = selectedPiece === slotIndex;
             const isCorrect = piece.currentPos === piece.correctPos;
             
-            // Calculate background position
-            // correctPos 0 = 0% 0%
-            // correctPos 1 = 50% 0% (for 3x3) -> x = (col * 100) / (size - 1)%
+            // Calculate which slice of the image this piece should show
             const row = Math.floor(piece.correctPos / GRID_SIZE);
             const col = piece.correctPos % GRID_SIZE;
-            const bgX = (col * 100) / (GRID_SIZE - 1);
-            const bgY = (row * 100) / (GRID_SIZE - 1);
+            
+            // For CSS background positioning with oversized backgrounds:
+            // background-size: 400% means image is 4x the element size
+            // To show the slice at position (col, row), we need to shift the image
+            // 
+            // The correct formula for an NxN grid:
+            // bgX = (col / (N - 1)) * 100%  for col > 0, else 0%
+            // bgY = (row / (N - 1)) * 100%  for row > 0, else 0%
+            // This positions each slice correctly
+            const bgXPercent = col === 0 ? 0 : (col / (GRID_SIZE - 1)) * 100;
+            const bgYPercent = row === 0 ? 0 : (row / (GRID_SIZE - 1)) * 100;
 
             return (
               <motion.div
@@ -169,8 +195,9 @@ export function PuzzleGame({ onComplete }: PuzzleGameProps) {
                 } ${isComplete ? 'ring-0' : ''}`}
                 style={{
                   backgroundImage: `url(${PUZZLE_IMAGE})`,
-                  backgroundSize: `${GRID_SIZE * 100}%`,
-                  backgroundPosition: `${bgX}% ${bgY}%`,
+                  backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
+                  backgroundPosition: `${bgXPercent}% ${bgYPercent}%`,
+                  backgroundRepeat: 'no-repeat',
                 }}
                 whileHover={{ scale: isComplete ? 1 : 1.05 }}
                 whileTap={{ scale: 0.95 }}

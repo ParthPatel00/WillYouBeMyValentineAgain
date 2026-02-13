@@ -8,13 +8,28 @@ export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Create audio element
-    // Using a reliable royalty-free source for background music
-    // "Cute Background Music" style
-    const audio = new Audio("https://cdn.pixabay.com/download/audio/2022/10/25/audio_5b3834d852.mp3?filename=cute-creatures-123473.mp3");
+    // Try background.mp3 first, fallback to background.mps if user named it that way
+    const audioSrc = "/background.mp3";
+    const audio = new Audio(audioSrc);
     audio.loop = true;
     audio.volume = 0.3; // Gentle volume
     audioRef.current = audio;
+
+    // Attempt to auto-play immediately when component mounts
+    const playPromise = audio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          setIsPlaying(true);
+          setHasInteracted(true);
+        })
+        .catch((error) => {
+          // Auto-play was prevented by browser policy
+          // Will wait for user interaction
+          console.log("Auto-play prevented, waiting for user interaction");
+        });
+    }
 
     return () => {
       audio.pause();
@@ -50,7 +65,11 @@ export function AudioPlayer() {
     };
 
     window.addEventListener('click', handleInteraction, { once: true });
-    return () => window.removeEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction, { once: true });
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
   }, [hasInteracted, isPlaying]);
 
   return (
