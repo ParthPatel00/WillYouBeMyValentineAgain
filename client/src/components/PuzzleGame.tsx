@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 // Using local asset so user can easily replace it
 const PUZZLE_IMAGE = "/puzzle.jpg";
 
-const GRID_SIZE = 3; // 3x3 grid = 9 pieces
+const GRID_SIZE = 4; // 4x4 grid = 16 pieces
 const PIECE_SIZE = 100; // base size in px (will be responsive)
 
 interface Piece {
